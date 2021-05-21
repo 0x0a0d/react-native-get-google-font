@@ -77,7 +77,7 @@ const getPathFonts = () =>
     name: 'pathFonts',
     type: 'text',
     message: FONT_PATH_INSTRUCTION,
-    initial: path.resolve(__dirname, './src/assets/fonts')
+    initial: path.join(cwd(), './src/assets/fonts')
   })
 
 const getShouldCreateReadme = () =>
