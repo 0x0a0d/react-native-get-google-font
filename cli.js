@@ -12,12 +12,9 @@ const marked = require('marked')
 const TerminalRenderer = require('marked-terminal')
 const ora = require('ora')
 const rmfr = require('rmfr')
+const fontReader = require('font-reader')
 
 const {
-  DOWNLOADS_FOLDER,
-  CREATING_FOLDER,
-  REMOVING_EXISTING_FOLDER,
-  GITHUB_PERSONAL_TOKEN_INSTRUCTION,
   FONT_NAME_INSTRUCTION,
   FONT_NAME_HINT,
   README_INSTRUCTION,
@@ -28,14 +25,11 @@ const {
   DOWNLOADED,
   WRITING_FONT,
   REACT_NATIVE_LINK_INSTRUCTION,
-  GITHUB_PERSONAL_TOKEN_HINT,
   CHECKING_DESTINATION_EXISTS,
   GETTING_IOS_POSTSCRIPT_NAME,
   CREATING_DESTINATION_FOLDER,
   FONT_EXISTS,
   README_LINE,
-  REMOVING_TEMPORARY_FOLDER,
-  REMOVED_TEMPORARY_FOLDER,
   ABORTED_DUE_TO_EXCEPTION,
   CHECKING_RN_CONFIG_EXISTS,
   CREATING_RN_CONFIG,
@@ -59,37 +53,22 @@ const {
 const access = promisify(fs.access)
 const mkdir = promisify(fs.mkdir)
 const writeFile = promisify(fs.writeFile)
-const rename = promisify(fs.rename)
 const exec = promisify(childProcess.exec)
-
-const createOrReCreateFolder = async (folder, spinner = ora()) => {
-  try {
-    spinner.start(CREATING_FOLDER)
-    await mkdir(folder)
-  } catch (error) {
-    if (error.code === 'EEXIST') {
-      spinner.start(REMOVING_EXISTING_FOLDER)
-      await rmfr(folder)
-      spinner.start(CREATING_FOLDER)
-      await mkdir(folder)
-    }
+function toArrayBuffer(buf) {
+  var ab = new ArrayBuffer(buf.length);
+  var view = new Uint8Array(ab);
+  for (var i = 0; i < buf.length; ++i) {
+    view[i] = buf[i];
   }
+  return ab;
 }
-
-const getToken = () =>
-  prompts({
-    name: 'token',
-    type: 'invisible',
-    message: GITHUB_PERSONAL_TOKEN_INSTRUCTION,
-    hint: GITHUB_PERSONAL_TOKEN_HINT,
-  })
-
 const getFontName = () =>
   prompts({
     name: 'fontName',
     type: 'text',
     message: FONT_NAME_INSTRUCTION,
     hint: FONT_NAME_HINT,
+    validate: text => typeof text === 'string' && text.trim().length > 0
   })
 
 const getShouldCreateReadme = () =>
@@ -115,21 +94,8 @@ const getShouldUseNPX = () =>
 
 ;(async () => {
   const { fontName } = await getFontName()
-  const { token } = await getToken()
 
-  if (!fontName || !token) {
-    ora({
-      spinner: 'dots',
-      color: 'cyan',
-    }).fail('Font name and token must be provided')
-    throw new Error('INVALID_OPTIONS')
-  }
-
-  const api = axios.create({
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
+  const api = axios.create()
 
   const spinner = ora({
     spinner: 'dots',
@@ -156,9 +122,6 @@ const getShouldUseNPX = () =>
       fileName: path.substr(path.lastIndexOf('/') + 1, path.length),
     }))
 
-  const downloadsFolder = path.join(cwd(), DOWNLOADS_FOLDER)
-  await createOrReCreateFolder(downloadsFolder, spinner)
-
   let readmeContents =
     '# FONTS-README\n\nNow you can use the following fonts:\n\n'
 
@@ -172,16 +135,12 @@ const getShouldUseNPX = () =>
       spinner.succeed(`${progress} - ${DOWNLOADED}: ${item.fileName}`)
       spinner.start(`${progress} - ${WRITING_FONT}: ${item.fileName}.`)
 
-      const sourceFile = path.join(downloadsFolder, item.fileName)
-      await writeFile(sourceFile, response.data.content, response.data.encoding)
-
       spinner.start(
         `${progress} - ${GETTING_IOS_POSTSCRIPT_NAME}: ${item.fileName}.`,
       )
 
-      const { stdout: fontName } = await exec(
-        `fc-scan --format "%{postscriptname}" ${sourceFile}`,
-      )
+      const buf = toArrayBuffer(new Buffer(response.data.content, response.data.encoding))
+      const { fontName } = new fontReader.TTFReader(buf).getAttrs()
       const assetsFontsFolder = path.join(cwd(), 'assets/fonts')
 
       try {
@@ -194,13 +153,13 @@ const getShouldUseNPX = () =>
 
       const targetFile = path.join(assetsFontsFolder, `${fontName}.ttf`)
       spinner.start(
-        `${progress} - Moving: ${item.fileName} to ${fontName}.ttf.`,
+        `${progress} - Creating: ${fontName}.ttf.`,
       )
       try {
         await access(targetFile)
         spinner.info(`${fontName} ${FONT_EXISTS}`)
       } catch (error) {
-        await rename(sourceFile, targetFile)
+        await writeFile(targetFile, response.data.content, response.data.encoding)
       }
       readmeContents += README_LINE.replace('{0}', fontName)
     } catch (error) {
@@ -209,10 +168,6 @@ const getShouldUseNPX = () =>
       break
     }
   }
-
-  spinner.start(REMOVING_TEMPORARY_FOLDER)
-  await rmfr(downloadsFolder)
-  spinner.succeed(REMOVED_TEMPORARY_FOLDER)
 
   if (shouldAbort) {
     spinner.fail(ABORTED_DUE_TO_EXCEPTION)
