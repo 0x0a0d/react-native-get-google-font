@@ -27,6 +27,8 @@ const FONT_NAME_INSTRUCTION = 'Font name'
 const FONT_NAME_HINT =
   'Please use the package font-name: IE open-sans (Instead of Open Sans).'
 
+const FONT_PATH_INSTRUCTION = 'Font path'
+
 const README_INSTRUCTION =
   'Do you want a FONTS-README.md file containing some usage instructions? (This will overwrite any existing file with that name).'
 
@@ -57,6 +59,7 @@ module.exports = {
   GITHUB_PERSONAL_TOKEN_INSTRUCTION,
   FONT_NAME_INSTRUCTION,
   FONT_NAME_HINT,
+  FONT_PATH_INSTRUCTION,
   README_INSTRUCTION,
   GETTING_FONTS_DIRECTORY,
   GITHUB_FONT_DIRECTORY_URL,

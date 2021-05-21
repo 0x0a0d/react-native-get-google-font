@@ -13,6 +13,7 @@ const TerminalRenderer = require('marked-terminal')
 const ora = require('ora')
 const rmfr = require('rmfr')
 const fontReader = require('font-reader')
+const { FONT_PATH_INSTRUCTION } = require('./consts')
 
 const {
   FONT_NAME_INSTRUCTION,
@@ -71,6 +72,14 @@ const getFontName = () =>
     validate: text => typeof text === 'string' && text.trim().length > 0
   })
 
+const getPathFonts = () =>
+  prompts({
+    name: 'pathFonts',
+    type: 'text',
+    message: FONT_PATH_INSTRUCTION,
+    initial: path.resolve(__dirname, './src/assets/fonts')
+  })
+
 const getShouldCreateReadme = () =>
   prompts({
     name: 'shouldCreateReadme',
@@ -94,6 +103,7 @@ const getShouldUseNPX = () =>
 
 ;(async () => {
   const { fontName } = await getFontName()
+  const { pathFonts } = await getPathFonts()
 
   const api = axios.create()
 
@@ -141,17 +151,16 @@ const getShouldUseNPX = () =>
 
       const buf = toArrayBuffer(new Buffer(response.data.content, response.data.encoding))
       const { fontName } = new fontReader.TTFReader(buf).getAttrs()
-      const assetsFontsFolder = path.join(cwd(), 'assets/fonts')
 
       try {
         spinner.start(CHECKING_DESTINATION_EXISTS)
-        await access(assetsFontsFolder)
+        await access(pathFonts)
       } catch (error) {
         spinner.start(CREATING_DESTINATION_FOLDER)
-        await mkdir(assetsFontsFolder)
+        await mkdir(pathFonts)
       }
 
-      const targetFile = path.join(assetsFontsFolder, `${fontName}.ttf`)
+      const targetFile = path.join(pathFonts, `${fontName}.ttf`)
       spinner.start(
         `${progress} - Creating: ${fontName}.ttf.`,
       )
